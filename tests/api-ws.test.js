@@ -2,6 +2,19 @@ const request = require('supertest')
 const server = require('../server.js')
 const socketClient  = require('socket.io-client')
 
+const wsPort = process.env.TEST_WS_PORT || 82
+const wsAddress = `ws://localhost:${wsPort}/io/ws`
+
+function join(socket, id) {
+    socket.on('connect', () => {
+        socket.emit('join', ({id: id}))
+    })
+}
+
+function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 it("shoud get empty connection array", async () => {
     await request(server.appServer)
       .get('/api/v1/socket/connections')
@@ -13,15 +26,13 @@ it("shoud get empty connection array", async () => {
 })
 
 it("shoud get one connection", async () => {
-    server.wsServer.listen(88)
-    const socket = socketClient.connect('ws://localhost:88/io/ws')
+    server.wsServer.listen(wsPort)
+    const socket = socketClient.connect(wsAddress)
     const expectedConnectionId = '123'
 
-    socket.on('connect', () => {
-        socket.emit('join', ({id: expectedConnectionId}))
-    })
+    join(socket, expectedConnectionId)
 
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await timeout(50)
     await request(server.appServer)
         .get('/api/v1/socket/connections')
         .send()
@@ -35,20 +46,15 @@ it("shoud get one connection", async () => {
 })
 
 it("shoud get few connections", async () => {
-    server.wsServer.listen(88)
-    const socket = socketClient.connect('ws://localhost:88/io/ws')
-    const socketOneMore = socketClient.connect('ws://localhost:88/io/ws')
+    server.wsServer.listen(wsPort)
+    const socket = socketClient.connect(wsAddress)
+    const socketOneMore = socketClient.connect(wsAddress)
     const expectedConnections = ['123', '1234']
 
-    socket.on('connect', () => {
-        socket.emit('join', ({id: expectedConnections[0]}))
-    })
+    join(socket, expectedConnections[0])
+    join(socketOneMore, expectedConnections[1])
 
-    socketOneMore.on('connect', () => {
-        socketOneMore.emit('join', ({id: expectedConnections[1]}))
-    })
-
-    await new Promise(resolve => setTimeout(resolve, 50))
+    await timeout(50)
     await request(server.appServer)
         .get('/api/v1/socket/connections')
         .send()
@@ -63,22 +69,17 @@ it("shoud get few connections", async () => {
 })
 
 it("shoud get one connection after diconnect one more", async () => {
-    server.wsServer.listen(88)
-    const socket = socketClient.connect('ws://localhost:88/io/ws')
-    const socketOneMore = socketClient.connect('ws://localhost:88/io/ws')
+    server.wsServer.listen(wsPort)
+    const socket = socketClient.connect(wsAddress)
+    const socketOneMore = socketClient.connect(wsAddress)
     const expectedConnection = '1234'
 
-    socket.on('connect', () => {
-        socket.emit('join', ({id: 1}))
-    })
-
-    socketOneMore.on('connect', () => {
-        socketOneMore.emit('join', ({id: expectedConnection}))
-    })
+    join(socket, 1)
+    join(socketOneMore, expectedConnection)
 
     socket.disconnect()
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await timeout(100)
     let res = await request(server.appServer)
         .get('/api/v1/socket/connections')
         .send()
@@ -109,15 +110,13 @@ it("shoud get connection not found", async () => {
 })
 
 it("send message", async () => {
-    server.wsServer.listen(88)
-    let socket = socketClient.connect('ws://localhost:88/io/ws')
+    server.wsServer.listen(wsPort)
+    let socket = socketClient.connect(wsAddress)
     const connectionId = '123'
     const testEvent = 'test_event'
     const expectedMessage = 'foo message'
 
-    socket.on('connect', () => {
-        socket.emit('join', ({id: connectionId}))
-    })
+    join(socket, connectionId)
 
     socket.on(testEvent, message => {
         if (message.body !== expectedMessage) {
@@ -125,14 +124,12 @@ it("send message", async () => {
         }
 
         socket.close()
-        socket = socketClient.connect('ws://localhost:88/io/ws')
+        socket = socketClient.connect(wsAddress)
 
-        socket.on('connect', () => {
-            socket.emit('join', ({id: expectedMessage}))
-        })
+        join(socket, expectedMessage)
     })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await timeout(100)
     await request(server.appServer)
         .post('/api/v1/socket/send')
         .send({
@@ -147,7 +144,7 @@ it("send message", async () => {
             message: 'message sent'
         })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await timeout(100)
     await request(server.appServer)
         .get('/api/v1/socket/connections')
         .send()
@@ -163,19 +160,14 @@ it("send message", async () => {
 
 
 it("send broadcast message", async () => {
-    server.wsServer.listen(88)
-    let socket = socketClient.connect('ws://localhost:88/io/ws')
-    let socketOneMore = socketClient.connect('ws://localhost:88/io/ws')
+    server.wsServer.listen(wsPort)
+    let socket = socketClient.connect(wsAddress)
+    let socketOneMore = socketClient.connect(wsAddress)
     const testEvent = 'test_event'
     const expectedMessage = ['foo', 'bar']
 
-    socket.on('connect', () => {
-        socket.emit('join', ({id: 1}))
-    })
-
-    socketOneMore.on('connect', () => {
-        socketOneMore.emit('join', ({id: 2}))
-    })
+    join(socket, 1)
+    join(socketOneMore, 2)
 
     socket.on(testEvent, message => {
         if (JSON.stringify(message.body) !== JSON.stringify(expectedMessage)) {
@@ -183,13 +175,9 @@ it("send broadcast message", async () => {
         }
 
         socket.close()
-        socket = socketClient.connect('ws://localhost:88/io/ws')
+        socket = socketClient.connect(wsAddress)
 
-        socket.on('connect', () => {
-            socket.emit('join', ({id: expectedMessage[0]}))
-        })
-
-        socket.a = 54321
+        join(socket, expectedMessage[0])
     })
 
     socketOneMore.on(testEvent, message => {
@@ -198,14 +186,12 @@ it("send broadcast message", async () => {
         }
 
         socketOneMore.close()
-        socketOneMore = socketClient.connect('ws://localhost:88/io/ws')
+        socketOneMore = socketClient.connect(wsAddress)
 
-        socketOneMore.on('connect', () => {
-            socketOneMore.emit('join', ({id: expectedMessage[1]}))
-        })
+        join(socketOneMore, expectedMessage[1])
     })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await timeout(100)
     await request(server.appServer)
         .post('/api/v1/socket/broadcast')
         .send({
@@ -219,7 +205,7 @@ it("send broadcast message", async () => {
             message: 'message sent'
         })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await timeout(100)
     await request(server.appServer)
         .get('/api/v1/socket/connections')
         .send()
