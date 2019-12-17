@@ -2,13 +2,13 @@ version: '3.6'
 services:
   socket_service:
     restart: always
-    working_dir: /var/www/socket-service
-    build:
-      context: ./socket_service
+    working_dir: /var/www/app
+    image: node:13.3.0-alpine3.10
     container_name: socket_service
     ports:
       - 80:80
+      - 81:81
     tty: true
     volumes:
-      - .:/var/www/socket-service
-    command: "node app/app.js"
+      - .:/var/www/app
+    command: "npm install --dev && node app.js"
