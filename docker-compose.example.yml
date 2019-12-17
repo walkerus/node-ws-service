@@ -1,0 +1,14 @@
+version: '3.6'
+services:
+  socket_service:
+    restart: always
+    working_dir: /var/www/socket-service
+    build:
+      context: ./socket_service
+    container_name: socket_service
+    ports:
+      - 80:80
+    tty: true
+    volumes:
+      - .:/var/www/socket-service
+    command: "node app/app.js"
