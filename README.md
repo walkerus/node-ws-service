@@ -7,15 +7,15 @@ WebSocket Node js server and API for it
 ## Usage
 Run container with service
 ```sh
-docker run -d -e APP_PORT=1025 -e WS_PORT=1026 -p 1025:1025 -p 1026:1026 wolfwalker/node-ws-service
+docker run -d -e APP_PORT=8081 -e WS_PORT=8082 -p 8081:8081 -p 8082:8082 wolfwalker/node-ws-service
 ```
 
 Use [Socket.io client](https://socket.io/docs/client-api/) or any other WebSocket client to establish a connection
 
 ```js
-<script src="http://localhost:1026/socket.io/socket.io.js"></script>
+<script src="http://localhost:8082/socket.io/socket.io.js"></script>
 <script>
-    const socket = io.connect('ws://localhost:1026/io/ws')
+    const socket = io.connect('ws://localhost:8082/io/ws')
     socket.on('connect', () => {
         // When connecting, you must pass the id with which you can send the message via api
         socket.emit('join', ({id: 123}))
